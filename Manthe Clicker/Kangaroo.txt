@@ -1,0 +1,49 @@
+#include "MinHook.h"
+
+PROCESS_INFORMATION *process_information = NULL;
+
+typedef NTSTATUS (*Resume)(HANDLE ThreadHandle, PULONG SuspendCount);
+Resume original_ntresumethread = NULL;
+
+NTSTATUS 
+ntresumethread_hook(HANDLE ThreadHandle, PULONG SuspendCount)
+{
+	LPVOID load_library = GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
+	LPVOID process_memory = VirtualAllocEx(process_information->hProcess, NULL, strlen("Kangaroo2.dll"), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	WriteProcessMemory(process_information->hProcess, process_memory, "Kangaroo2.dll", strlen("Kangaroo2.dll"), NULL);
+	CreateRemoteThread(process_information->hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)load_library, (LPVOID)process_memory, NULL, NULL);
+	
+	return original_ntresumethread(ThreadHandle, SuspendCount);
+}
+
+typedef BOOL (*CP)(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes,
+	LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags,
+	LPVOID lpEnvironment, LPCSTR lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo,
+	LPPROCESS_INFORMATION lpProcessInformation);
+CP original_createprocess = NULL;
+
+BOOL 
+createprocess_hook(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCSTR lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation)
+{
+	process_information = lpProcessInformation;
+
+	LPVOID NtResumeThread = GetProcAddress(GetModuleHandleA(("ntdll.dll")), "NtResumeThread");
+	MH_CreateHook(NtResumeThread, &ntresumethread_hook, (void**)&original_ntresumethread);
+	MH_EnableHook(NtResumeThread);
+
+	return original_createprocess(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
+}
+
+BOOL 
+DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved) {
+	if (ul_reason_for_call == DLL_PROCESS_ATTACH) 
+	{
+		if(!GetModuleHandleA("kernel32.dll")) 
+			LoadLibraryA("kernel32.dll");
+
+		MH_Initialize();
+		MH_CreateHook(&CreateProcess, &createprocess_hook, (void**)&original_createprocess);
+		MH_EnableHook(&CreateProcess);
+	}
+	return TRUE;
+}

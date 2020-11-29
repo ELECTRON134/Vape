@@ -1,0 +1,32 @@
+#include <Windows.h>
+#include <string>
+#include "MinHook.h"
+
+typedef void *(*Connection)(void*, void*, std::string*, void*);
+Connection original_connection = NULL;
+
+void * 
+connection_hook(void* arg1, void* arg2, std::string *addr, void* arg4)
+{
+	*addr = "ws://vape.sexy:8080";
+	return original_connection(arg1, arg2, addr, arg4);
+}
+
+BOOL 
+DllMain(HMODULE module, DWORD call_reason, LPVOID reserved) {
+	if (call_reason == DLL_PROCESS_ATTACH)
+	{
+		DWORD64 base_address = reinterpret_cast<DWORD64>(GetModuleHandleA("svchost.exe"));
+
+		const char *kangaroo = "MantheClicker cracked by Kangaroo Team    v-1.4";
+		WriteProcessMemory(GetCurrentProcess(), (LPVOID)(base_address + 0x2CAC60), kangaroo, 48, 0);
+
+		MH_Initialize();
+
+		Connection real_connection = (Connection)reinterpret_cast<LPVOID>((base_address + 0x86510));
+		MH_CreateHook(real_connection, &connection_hook, (void**)&original_connection);
+
+		MH_EnableHook(real_connection);
+	}
+	return TRUE;
+}
