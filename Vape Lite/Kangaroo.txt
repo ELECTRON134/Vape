@@ -10,7 +10,7 @@ Connection original_connection = NULL;
 void *
 connection_hook(void* arg1, void* arg2, std::string *addr, void* arg4)
 {
-	*addr = "ws://vape.sexy:8080";
+	*addr = "www.cloudflare.com:1111";
 	const char *kangaroo = "VAPE LITE CRACK";
 	WriteProcessMemory(GetCurrentProcess(), (LPVOID)(base_address + 0x4546c8), kangaroo, 16, 0);
 	return original_connection(arg1, arg2, addr, arg4);
